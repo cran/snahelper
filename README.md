@@ -1,40 +1,34 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
+# snahelper <img src="man/figures/logo.png" align="right"/>
+
 [![Lifecycle:
 maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://www.tidyverse.org/lifecycle/#maturing)
+[![CRAN
+status](https://www.r-pkg.org/badges/version/snahelper)](https://cran.r-project.org/package=snahelper)
+[![Downloads](https://cranlogs.r-pkg.org/badges/snahelper)](https://CRAN.R-project.org/package=snahelper)
 
-# snahelper
+`snahelper` provides a set RStudio Addin for social network analysis.
+The main addin is the `SNAhelper` which provides a simple GUI to do
+common network analytic tasks and visualize a network with
+[ggraph](https://ggraph.data-imaginist.com/).
 
-`snahelper` is an Rstudio Addin to analyse and visualize networks. (*All
-screenshots are from an older version of the tool*)
+The second addin, called `Netbuilder` allows you to quickly build small
+networks with a small “canvas” to draw on. The network can be exported
+as an igraph object at the end of the session by clicking on “Done”.
 
-![](figures/example.png)
+The third addin `Netreader` is meant to facilitated the import of raw
+network data. It provides a GUI to easily read network and attribute
+data and combine them to an igraph object. The underlying code of the
+import procedure is shown at the end. This should help users to learn
+importing data themselves.
 
-## Installation
+## Quick example of SNAhelper
 
-You can install the developer version with:
+![](man/figures/snahelper.gif)
 
-``` r
-#install.packages(remotes)
-remotes::install_github("schochastics/snahelper")
-```
-
-In order to work properly, the Package also needs the `graphlayouts`
-package, which adds a new layout algorithm.
-
-``` r
-install.packages("graphlayouts")
-```
-
-## Usage
-
-In order to use the Addin, simply highlight a network in your script and
-select `snahelper` from the Addin dropdown menu.
-
-![](figures/snahelper.gif)
-
-Below is the code to produce the starwars network used in the gif
+Code to reproduce the used network.
 
 ``` r
 library(tidyverse)
@@ -59,27 +53,72 @@ V(g)$colour <- ifelse(V(g)$display=="",NA,V(g)$display)
 g
 ```
 
+## Quick example of Netreader
+
+`Netreader` should be pretty selfexplanatory. The first two tabs allow
+you to import raw data (edges and attributes). Make sure to specify file
+delimiters, etc. according to the shown preview.
+
+![](man/figures/Netreader1.png)
+
+Using the `Netreader` should comes with a learning effect (hopefully).
+The last tab shows the R code to produce the network with the chosen
+data **without** using the Addin. ![](man/figures/Netreader2.png)
+
+The network will be saved in your global environment once you click
+“Done”.
+
+## Quick example of Netbuilder
+
+![](man/figures/Netbuilder.gif)
+
+## Installation
+
+``` r
+# developer version
+#install.packages(remotes)
+remotes::install_github("schochastics/snahelper")
+
+#CRAN version
+install.packages("snahelper")
+```
+
+To work properly, you also need
+[graphlayouts](https://github.com/schochastics/graphlayouts), which adds
+new layout algorithms.
+
+``` r
+install.packages("graphlayouts")
+```
+
+## Usage of SNAhelper
+
+To use the main addin, simply highlight a network in your script and
+select `SNAhelper` from the Addin dropdown menu.
+
 ## Interface
 
 ### Layout
 
 The layout tab allows you to choose from all implemented algorithms in
-`igraph` and the stress based layout from `smglr`, which is the default
-and recommended choice. See [my
+`igraph` and some layouts from `graphlayouts`. The default is a stress
+based layout and also the recommended choice. See [my
 blog](http://blog.schochastics.net/post/stress-based-graph-layouts/) for
 an explanation. In the tweak section you can move individual nodes
-around. The implementation is still very crude, so don’t expect miracles
-from that. The layout is saved as node attributes x and y.
+around. Choose the node from the dropdown menu and click on its new
+position in the plot.
 
-![](figures/layout.png)
+![](man/figures/layout.png)
 
 ### Node Attribute Manager
 
 The Node Attribute Manager shows all existing node attributes in a
 sortable table. In addition, you can calculate some new ones (centrality
-and clustering). More will be added in the future.
+and clustering). The functions automatically choose the right version of
+indices, depending if the network is
+directed/weighted/undirected/unweighted.
 
-![](figures/NattributeMan.png)
+![](man/figures/NattributeMan.png)
 
 ### Nodes
 
@@ -87,35 +126,30 @@ This is where you can style your nodes. You can either do it manually,
 by choosing a color/size for all nodes together, or based on an
 attribute.
 
-![](figures/nodes.png)
+![](man/figures/nodes.png)
 
 ### Edge Attribute Manager
 
 Same as Node Attribute Manager but for edges. So far only shows existing
 edge attributes.
 
-![](figures/EattributeMan.png)
+![](man/figures/EattributeMan.png)
 
 ### Edges
 
 You can style your edges here. `snahelper` automatically detects if your
 network is directed and adds arrows if the network is directed. The
-other options are similar to the nodes tab. ~~The curvature option
-allows you to bend edges. I highly suggest, that you only bend your
-edges if there are two edges running between the same set of nodes to
-make them visible. If you do not have reciprocal edges, then just leave
-it at 0.~~ Edges are now drawn with `geom_edge_fan` to automatically
-bend reciprocal edges and leave other edges straight. The `Pts. per
-Edge` input controls the number of points drawn along the edge. In most
-use cases this should simply be 2. The value should be increased though
-in the presence of reciprocal directed edges.
+other options are similar to the nodes tab. The snahelper automatically
+chooses the appropriate edge geom. If multiple edges are present, it
+uses `geom_edge_parallel0()`. Otherwise `geom_edge_link0()`.
 
-![](figures/edges.png)
+![](man/figures/edges.png)
 
 ### Result
 
 The result tab shows the network in its full size. If you are satisfied
 with the results, hit the Done button and the R code to produce the plot
-is automatically inserted in your script.
+is automatically inserted in your script. Or you can directly save the
+result as a png file.
 
-![](figures/result.png)
+![](man/figures/result.png)

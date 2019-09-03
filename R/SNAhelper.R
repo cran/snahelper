@@ -4,7 +4,7 @@
 #'
 #' @details To run the addin, highlight an igraph-object in your current script and select \code{SNAhelper} from the Addins-menu within RStudio. After terminating the addin, a character string containing the code for visualization is inserted in your current script. Alternatively you can run it with SNAhelperGadget(graph) from the console.
 #' @param graph An igraph object to visualize
-#' @return \code{SNAelper} returns a character vector with code.
+#' @return \code{SNAhelper} returns a character vector with code.
 #' @import miniUI
 #' @import shiny
 #' @import ggplot2
@@ -21,6 +21,9 @@ SNAhelper <- function(text){
   if (!requireNamespace("graphlayouts", quietly = TRUE)) {
     stop("graphlayouts package not found. Install it with install.packages('graphlayouts')", call. = FALSE)
   }
+  # if(utils::packageVersion("ggraph")<"1.0.2.9999"){
+  #   stop("snahelper needs a newer version of ggraph. please update it")
+  # }
 
   if (any(ls(envir = .GlobalEnv) == text)) {
     g <- get(text, envir = .GlobalEnv)
@@ -31,6 +34,11 @@ SNAhelper <- function(text){
     rv <- reactiveValues(g=g,xy=xy)
   } else {
     stop(paste0('Couldn\'t find  the graph ', text, '.'))
+  }
+  if(any(igraph::is.multiple(g))){
+    edge_geom <- "geom_edge_parallel0("
+  } else{
+    edge_geom <- "geom_edge_link0("
   }
 
   #ui ----
@@ -43,24 +51,28 @@ SNAhelper <- function(text){
     gadgetTitleBar("SNA helper"),
     miniTabstripPanel(selected = 'layout',
                       miniTabPanel("layout", icon = icon('sliders'),
-                                   plotOutput("Graph1", width = '100%', height = '55%',click = "tweakxy"),
+                                   plotOutput("Graph1", width = '80%', height = '55%',click = "tweakxy"),
                                    miniContentPanel(
                                      scrollable = TRUE,
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Choose Layout')
                                      ),
                                      fillRow(height = line.height, width = '100%',
-                                             selectizeInput('graph.layout',label="Layout Algorithm",
+                                             selectizeInput('graphLayout',label="Layout Algorithm",
                                                             choices=layouts.available,
                                                             selected="graphlayouts::layout_with_stress",width=input.width),
-                                             selectInput('legendPos', label = 'Show Legend',
-                                                         choices = c("none","top","bottom","left","right"),
-                                                         width = input.width)
+                                             shiny::conditionalPanel("input.graphLayout=='graphlayouts::layout_with_focus'",
+                                                                     selectizeInput('focalNode',label = 'Choose Focal Node ID',
+                                                                                    choices = 1:igraph::vcount(g),
+                                                                                    width = input.width)),
+                                             shiny::conditionalPanel("input.graphLayout=='graphlayouts::layout_with_centrality'",
+                                                                     selectizeInput('centralLay',label = 'Choose Centrality',
+                                                                                    choices = NULL,
+                                                                                    width = input.width))
                                      ),
-                                     fillRow(height = line.height, width = '100%',
+                                     fillRow(height = line.height, width = '50%',
                                              actionButton("do.layout","Calculate Layout"),
                                              actionButton("del.isolate","Delete Isolates")
-                                             # checkboxInput("showIso", label = "Show Isolates", value = TRUE)
                                      ),
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Tweak Layout'),
@@ -96,7 +108,7 @@ SNAhelper <- function(text){
                                    )
                       ),
                       miniTabPanel("nodes", icon = icon('circle'),
-                                   plotOutput("Graph2", width = '100%', height = '55%'),
+                                   plotOutput("Graph2", width = '80%', height = '55%'),
                                    miniContentPanel(
                                      scrollable = TRUE,
                                      fillRow(height = heading.height, width = '100%',
@@ -169,26 +181,27 @@ SNAhelper <- function(text){
                                    )
                       ),
                       miniTabPanel("edges", icon = icon('minus'),
-                                   plotOutput("Graph3", width = '100%', height = '55%'),
+                                   plotOutput("Graph3", width = '80%', height = '55%'),
                                    miniContentPanel(
                                      scrollable = TRUE,
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Manual')
                                      ),
-                                     fillRow(height = line.height, width = '100%',
+                                     fillRow(height = line.height, width = '75%',
                                              colourInput('edgeColMan',label="Colour",value = "gray66"),
                                              numericInput('edgeSizeMan', label = 'Width',
                                                           min = 0, max = 10, step = 0.1, value = 0.8,width=input.width),
                                              numericInput('edgeAlphaMan', label = 'Alpha',
-                                                          min = 0, max = 1, step = 0.01, value = 1.0,width=input.width),
-                                             numericInput('edgeNMan', label = 'Pts. per Edge',
-                                                          min = 2, max = 100, step = 1, value = 2,width=input.width)
+                                                          min = 0, max = 1, step = 0.01, value = 1.0,width=input.width)
                                      ),
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Attribute')
                                      ),
-                                     fillRow(height = line.height, width = '75%',
+                                     fillRow(height = line.height, width = '100%',
                                              selectizeInput('edgeColAttr', label = 'Colour (Cont.)',
+                                                            choices = NULL,
+                                                            width = input.width),
+                                             selectizeInput('edgeColAttrD', label = 'Colour (Discrete)',
                                                             choices = NULL,
                                                             width = input.width),
                                              selectizeInput('edgeSizeAttr', label = 'Width (Cont.)',
@@ -198,10 +211,16 @@ SNAhelper <- function(text){
                                                             choices = NULL,
                                                             width = input.width)
                                      ),
-                                     fillRow(height=line.height,width='75%',
+                                     fillRow(height=line.height,width='100%',
                                              shiny::conditionalPanel("input.edgeColAttr!='None'",
                                                                      colourInput('edgeColAttrL',label="Min Colour",value = "skyblue1"),
                                                                      colourInput('edgeColAttrH',label="Max Colour",value = "royalblue4")
+                                             ),
+                                             shiny::conditionalPanel("input.edgeColAttrD!='None'",
+                                                                     selectizeInput('edgeColAttrP',label = 'Palette',
+                                                                                    choices = c("Set1","Set2","Set3","Pastel2","Pastel1",
+                                                                                                "Paired","Dark2","Accent"),
+                                                                                    width = input.width)
                                              ),
                                              shiny::conditionalPanel("input.edgeSizeAttr!='None'",
                                                                      numericInput('edgeSizeAttrL', label = 'Min Width',
@@ -220,19 +239,25 @@ SNAhelper <- function(text){
                                    )
                       ),
                       miniTabPanel("result", icon = icon('bezier-curve'),
-                                   plotOutput("Graph4", width = '100%', height = '90%'),
+                                   plotOutput("Graph4", width = '90%', height = '80%'),
                                    miniContentPanel(
                                      scrollable = TRUE,
-                                   downloadButton("downloadData", "Save PNG")))
+                                     fillRow(height = line.height, width = '50%',
+                                     selectInput('legendPos', label = 'Show Legend:',
+                                                 choices = c("none","top","bottom","left","right"),
+                                                 width = input.width)),
+                                     downloadButton("downloadData", "Save PNG")
+                                     )
+                                   )
 
     ))
 
 
 
   server <- function(input, output, session) {
-    #####################
+    #--------------------#
     #constants ----
-    #####################
+    #--------------------#
     vattr.to.aes <- igraph::vertex_attr_names(g)[!grepl("name",igraph::vertex_attr_names(g))]
     if(length(vattr.to.aes)>0){
     idC <- which(sapply(vattr.to.aes,function(x) is.numeric(igraph::get.vertex.attribute(g,x))))
@@ -248,12 +273,15 @@ SNAhelper <- function(text){
     if(length(eattr.to.aes)>0){
       idC <- which(sapply(eattr.to.aes,function(x) is.numeric(igraph::get.edge.attribute(g,x))))
       eattrC.to.aes <- c("None",eattr.to.aes[idC])
+      idC <- which(sapply(eattr.to.aes,function(x) !is.numeric(igraph::get.edge.attribute(g,x))))
+      eattrD.to.aes <- c("None",eattr.to.aes[idC])
     } else{
       eattrC.to.aes <- c("None")
+      eattrD.to.aes <- c("None")
     }
-    #####################
+    #--------------------#
     # check graph properties
-    #####################
+    #--------------------#
     if(is.directed(g) & !is.weighted(g)){
       cent_choice <- c("In-Degree" = "degree(rv$g,mode='in')",
                        "Out-Degree" = "degree(rv$g,mode='out')",
@@ -284,9 +312,13 @@ SNAhelper <- function(text){
                        "PageRank" = "page_rank(rv$g)$vector")
     }
 
-    #####################
+    #--------------------#
     #initialize selectors ----
-    #####################
+    #--------------------#
+    updateSelectizeInput(session = session, inputId = 'centralLay',
+                         choices = vattrC.to.aes, selected = "None", server = TRUE,
+                         options = list(create = TRUE))
+
     updateSelectizeInput(session = session, inputId = 'nodeColAttr',
                          choices = vattrC.to.aes, selected = "None", server = TRUE,
                          options = list(create = TRUE))
@@ -309,6 +341,10 @@ SNAhelper <- function(text){
                          choices = eattrC.to.aes, selected = "None", server = TRUE,
                          options = list(create = TRUE))
 
+    updateSelectizeInput(session = session, inputId = 'edgeColAttrD',
+                         choices = eattrD.to.aes, selected = "None", server = TRUE,
+                         options = list(create = TRUE))
+
     updateSelectizeInput(session = session, inputId = 'edgeSizeAttr',
                          choices = eattrC.to.aes, selected = "None", server = TRUE,
                          options = list(create = TRUE))
@@ -320,9 +356,9 @@ SNAhelper <- function(text){
     updateSelectizeInput(session = session, inputId = 'centindex',
                          choices = cent_choice, selected = cent_choice[1], server = TRUE,
                          options = list(create = TRUE))
-    #####################
+    #--------------------#
     #be sure either discrete or continuos is selected ----
-    #####################
+    #--------------------#
     shiny::observe({
       if(input$nodeColAttr!="None"){
         shiny::updateSelectInput(session,"nodeColAttrD",selected="None")
@@ -335,9 +371,21 @@ SNAhelper <- function(text){
       }
     })
 
-    #####################
+    shiny::observe({
+      if(input$edgeColAttr!="None"){
+        shiny::updateSelectInput(session,"edgeColAttrD",selected="None")
+      }
+    })
+
+    shiny::observe({
+      if(input$edgeColAttrD!="None"){
+        shiny::updateSelectInput(session,"edgeColAttr",selected="None")
+      }
+    })
+
+    #--------------------#
     #calculate initial layout ----
-    #####################
+    #--------------------#
     shiny::observeEvent(input$del.isolate,{
       idx <- which(degree(rv$g)==0)
       if(length(idx)>=1){
@@ -350,12 +398,8 @@ SNAhelper <- function(text){
     })
 
     shiny::observeEvent(input$do.layout,{
-      if(input$graph.layout!="graphlayouts::layout_as_backbone"){
-        xy <- eval(parse(text = paste0(input$graph.layout,"(rv$g)")))
-        rv$xy <- xy
-
-      } else{
-        xy <- eval(parse(text = paste0(input$graph.layout,"(rv$g)")))
+      if(input$graphLayout=="graphlayouts::layout_as_backbone"){
+        xy <- eval(parse(text = paste0(input$graphLayout,"(rv$g)")))
         rv$xy <- xy$xy
 
         bb <- rep(0,ecount(rv$g))
@@ -381,12 +425,23 @@ SNAhelper <- function(text){
         updateSelectizeInput(session = session, inputId = 'edgeAlphaAttr',
                              choices = eattrC.to.aes, selected = "None", server = TRUE,
                              options = list(create = TRUE))
+
+      } else if(input$graphLayout=="graphlayouts::layout_with_focus"){
+        xy <- eval(parse(text = paste0(input$graphLayout,"(rv$g, v = ",input$focalNode,")$xy")))
+        rv$xy <- xy
+      } else if(input$graphLayout=="graphlayouts::layout_with_centrality"){
+        xy <- eval(parse(text = paste0(input$graphLayout,"(rv$g, cent = get.vertex.attribute(rv$g,\"",input$centralLay,"\"))")))
+        rv$xy <- xy
+      }
+      else{
+        xy <- eval(parse(text = paste0(input$graphLayout,"(rv$g)")))
+        rv$xy <- xy
       }
       gg_reactive()
     })
-    #####################
+    #--------------------#
     #tweak layout ----
-    #####################
+    #--------------------#
     shiny::observeEvent(input$tweakxy,{
       indX <- as.numeric(input$nodeId)
       rv$xy[indX,1] <- input$tweakxy$x
@@ -395,40 +450,9 @@ SNAhelper <- function(text){
 
     })
 
-    # shiny::observeEvent(input$nodeId,{
-    #   idN <- as.numeric(input$nodeId)
-    #   xmin <- rv$xy[idN,1]-3
-    #   xmax <- rv$xy[idN,1]+3
-    #   xsel <- rv$xy[idN,1]
-    #   updateNumericInput(session = session,'nudgeX','moveX', value = xsel,
-    #                      min = xmin,max = xmax,step = 0.01)
-    #
-    #   ymin <- rv$xy[idN,2]-3
-    #   ymax <- rv$xy[idN,2]+3
-    #   ysel <- rv$xy[idN,2]
-    #   updateNumericInput(session = session,'nudgeY','moveY', value = ysel,
-    #                      min = ymin,max = ymax,step = 0.01)
-    # })
-    #
-    # shiny::observeEvent(input$nudgeX,{
-    #   indX <- as.numeric(input$nodeId)
-    #   # x <- rv$xy[indX,1]
-    #   # x <- x+input$nudgeX
-    #   # rv$xy[indX,1] <- x
-    #   rv$xy[indX,1] <- input$nudgeX
-    #   gg_reactive()
-    #
-    # })
-    # shiny::observeEvent(input$nudgeY,{
-    #   indX <- as.numeric(input$nodeId)
-    #
-    #   rv$xy[indX,2] <- input$nudgeY
-    #   gg_reactive()
-    #
-    # })
-    #####################
+    #--------------------#
     #calculate centrality/clustering if needed ----
-    #####################
+    #--------------------#
     shiny::observeEvent(input$calcIndex, {
       attr_name <- gsub("\\(rv.*","",input$centindex)
       if(!attr_name%in%igraph::vertex_attr_names(rv$g)){
@@ -440,6 +464,10 @@ SNAhelper <- function(text){
         vattr.to.aes <- igraph::vertex_attr_names(rv$g)[!grepl("name",igraph::vertex_attr_names(rv$g))]
         idC <- which(sapply(vattr.to.aes,function(x) is.numeric(igraph::get.vertex.attribute(rv$g,x))))
         vattrC.to.aes <- c("None",vattr.to.aes[idC])
+        updateSelectizeInput(session = session, inputId = 'centralLay',
+                             choices = vattrC.to.aes, selected = "None", server = TRUE,
+                             options = list(create = TRUE))
+
         updateSelectizeInput(session = session, inputId = 'nodeColAttr',
                              choices = vattrC.to.aes, selected = "None", server = TRUE,
                              options = list(create = TRUE))
@@ -476,10 +504,10 @@ SNAhelper <- function(text){
       }
     })
 
-    ###############################################################
-    #####################
+    #------------------------------------------------------------#
+    #--------------------#
     #main plotting function ----
-    #####################
+    #--------------------#
     gg_reactive <- reactive({
       validate(
         need(is.validColour(input$nodeColMan), ''),
@@ -494,15 +522,15 @@ SNAhelper <- function(text){
         need(is.validColour(input$edgeColMan), '')
       )
 
-      #####################
+      #--------------------#
       #layout ----
-      #####################
+      #--------------------#
       # xy <- get_layout()
-      code_layout <- "ggraph(rv$g,layout = \"manual\",node.positions = data.frame(x = rv$xy[,1], y = rv$xy[,2]))"
+      code_layout <- "ggraph(rv$g,layout = \"manual\", x = rv$xy[,1], y = rv$xy[,2])"
 
-      #####################
+      #--------------------#
       #nodes ----
-      #####################
+      #--------------------#
       if(input$nodeColAttr=="None" & input$nodeColAttrD=="None" & input$nodeSizeAttr=="None"){
         code_nodes <- paste0("geom_node_point(",
                              "fill = \"",input$nodeColMan,"\"",
@@ -572,9 +600,9 @@ SNAhelper <- function(text){
         nodes_scale_size <- paste0("scale_size(range = c(",input$nodeSizeAttrL,",",input$nodeSizeAttrH,"))")
         code_nodes <- paste(code_nodes,nodes_scale_col,nodes_scale_size,sep=" + ")
       }
-      #####################
+      #--------------------#
       #nodes labels ----
-      #####################
+      #--------------------#
       if(input$nodeLabelAttr!="None" & input$nodeLabelAttr!=""){
         code_labels <- paste0("geom_node_text(",
                               "aes(label = ",input$nodeLabelAttr,")",
@@ -588,15 +616,14 @@ SNAhelper <- function(text){
         }
         code_nodes <- paste(code_nodes,code_labels,sep=" + ")
       }
-      #####################
+      #--------------------#
       #edges ----
-      #####################
-      if(input$edgeColAttr=="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr=="None"){
-        code_edges <- paste0("geom_edge_fan(",
+      #--------------------#
+      if(input$edgeColAttr=="None" & input$edgeColAttrD=="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr=="None"){
+        code_edges <- paste0(edge_geom,
                              "edge_colour = \"",input$edgeColMan,"\"",
                              ",edge_width = ",input$edgeSizeMan,
-                             ",edge_alpha = ",input$edgeAlphaMan,
-                             ",n = ",input$edgeNMan,")")
+                             ",edge_alpha = ",input$edgeAlphaMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
                                ",\nends = \"last\", type = \"closed\")",
@@ -605,43 +632,55 @@ SNAhelper <- function(text){
         }
 
       } else if(input$edgeColAttr!="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr=="None"){
-        code_edges <- paste0("geom_edge_fan(",
-                             "aes(colour = ",input$edgeColAttr,")",
-                             ",edge_width = ",input$edgeSizeMan,
-                             ",edge_alpha = ",input$edgeAlphaMan,
-                             ",n = ",input$edgeNMan,")")
-        if(is.directed(g)){
-          arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
-          code_edges <- gsub(")$",arrow_code,code_edges)
-        }
-        edge_scale_col <- paste0("scale_edge_colour_gradient(low = \"",input$edgeColAttrL,"\",",
-                                 "high = \"",input$edgeColAttrH,"\")")
-        code_edges <- paste(code_edges,edge_scale_col,sep=" + ")
+          code_edges <- paste0(edge_geom,
+                               "aes(colour = ",input$edgeColAttr,")",
+                               ",edge_width = ",input$edgeSizeMan,
+                               ",edge_alpha = ",input$edgeAlphaMan,")")
+          if(is.directed(g)){
+            arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
+                                 ",\nends = \"last\", type = \"closed\")",
+                                 ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+            code_edges <- gsub(")$",arrow_code,code_edges)
+          }
+          edge_scale_col <- paste0("scale_edge_colour_gradient(low = \"",input$edgeColAttrL,"\",",
+                                   "high = \"",input$edgeColAttrH,"\")")
+          code_edges <- paste(code_edges,edge_scale_col,sep=" + ")
 
-      } else if(input$edgeColAttr=="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr=="None"){
-        code_edges <- paste0("geom_edge_fan(",
+      } else if(input$edgeColAttrD!="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr=="None"){
+          code_edges <- paste0(edge_geom,
+                               "aes(colour = ",input$edgeColAttrD,")",
+                               ",edge_width = ",input$edgeSizeMan,
+                               ",edge_alpha = ",input$edgeAlphaMan,")")
+          if(is.directed(g)){
+            arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
+                                 ",\nends = \"last\", type = \"closed\")",
+                                 ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+            code_edges <- gsub(")$",arrow_code,code_edges)
+          }
+          edge_scale_col <- paste0("scale_edge_colour_brewer(palette = \"",
+                                   input$edgeColAttrP,"\", na.value = \"gray53\")")
+          code_edges <- paste(code_edges,edge_scale_col,sep=" + ")
+
+      } else if(input$edgeColAttr=="None" & input$edgeColAttrD=="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr=="None"){
+          code_edges <- paste0(edge_geom,
                              "aes(width = ",input$edgeSizeAttr,")",
                              ",\nedge_colour = \"",input$edgeColMan,"\"",
-                             ",edge_alpha = ",input$edgeAlphaMan,
-                             ",n = ",input$edgeNMan,")")
-        if(is.directed(g)){
-          arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
-          code_edges <- gsub(")$",arrow_code,code_edges)
-        }
-        edge_scale_size <- paste0("scale_edge_width(",
-                                  "range = c(",input$edgeSizeAttrL,",",input$edgeSizeAttrH,"))")
-        code_edges <- paste(code_edges,edge_scale_size,sep=" + ")
+                             ",edge_alpha = ",input$edgeAlphaMan,")")
+          if(is.directed(g)){
+            arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
+                                 ",\nends = \"last\", type = \"closed\")",
+                                 ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+            code_edges <- gsub(")$",arrow_code,code_edges)
+          }
+          edge_scale_size <- paste0("scale_edge_width(",
+                                    "range = c(",input$edgeSizeAttrL,",",input$edgeSizeAttrH,"))")
+          code_edges <- paste(code_edges,edge_scale_size,sep=" + ")
 
-      } else if(input$edgeColAttr=="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr!="None"){
-        code_edges <- paste0("geom_edge_fan(",
+      } else if(input$edgeColAttr=="None" & input$edgeColAttrD=="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr!="None"){
+        code_edges <- paste0(edge_geom,
                              "aes(alpha = ",input$edgeAlphaAttr,")",
                              ",\nedge_colour = \"",input$edgeColMan,"\"",
-                             ",\nedge_width = ",input$edgeSizeMan,
-                             ",n = ",input$edgeNMan,")")
+                             ",\nedge_width = ",input$edgeSizeMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
                                ",\nends = \"last\", type = \"closed\")",
@@ -653,11 +692,10 @@ SNAhelper <- function(text){
         code_edges <- paste(code_edges,edge_scale_alpha,sep=" + ")
 
       } else if(input$edgeColAttr!="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr=="None"){
-        code_edges <- paste0("geom_edge_fan(",
+        code_edges <- paste0(edge_geom,
                              "aes(width = ",input$edgeSizeAttr,
                              ",\ncolour = ",input$edgeColAttr,")",
-                             ",edge_alpha = ",input$edgeAlphaMan,
-                             ",n = ",input$edgeNMan,")")
+                             ",edge_alpha = ",input$edgeAlphaMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
                                ",\nends = \"last\", type = \"closed\")",
@@ -671,12 +709,29 @@ SNAhelper <- function(text){
 
         code_edges <- paste(code_edges,edge_scale_col,edge_scale_size,sep=" + ")
 
+      }else if(input$edgeColAttrD!="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr=="None"){
+        code_edges <- paste0(edge_geom,
+                             "aes(width = ",input$edgeSizeAttr,
+                             ",\ncolour = ",input$edgeColAttrD,")",
+                             ",edge_alpha = ",input$edgeAlphaMan,")")
+        if(is.directed(g)){
+          arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
+                               ",\nends = \"last\", type = \"closed\")",
+                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+          code_edges <- gsub(")$",arrow_code,code_edges)
+        }
+        edge_scale_size <- paste0("scale_edge_width(",
+                                  "range = c(",input$edgeSizeAttrL,",",input$edgeSizeAttrH,"))")
+        edge_scale_col <- paste0("scale_edge_colour_brewer(palette = \"",
+                                 input$edgeColAttrP,"\", na.value = \"gray53\")")
+
+        code_edges <- paste(code_edges,edge_scale_col,edge_scale_size,sep=" + ")
+
       } else if(input$edgeColAttr!="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr!="None"){
-        code_edges <- paste0("geom_edge_fan(",
+        code_edges <- paste0(edge_geom,
                              "aes(alpha = ",input$edgeAlphaAttr,
                              ",colour = ",input$edgeColAttr,")",
-                             ",\nedge_width = ",input$edgeSizeMan,
-                             ",n = ",input$edgeNMan,")")
+                             ",\nedge_width = ",input$edgeSizeMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
                                ",\nends = \"last\", type = \"closed\")",
@@ -690,12 +745,29 @@ SNAhelper <- function(text){
 
         code_edges <- paste(code_edges,edge_scale_col,edge_scale_alpha,sep=" + ")
 
-      } else if(input$edgeColAttr=="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr!="None"){
-        code_edges <- paste0("geom_edge_fan(",
+      } else if(input$edgeColAttrD!="None" & input$edgeSizeAttr=="None" & input$edgeAlphaAttr!="None"){
+        code_edges <- paste0(edge_geom,
+                             "aes(alpha = ",input$edgeAlphaAttr,
+                             ",colour = ",input$edgeColAttrD,")",
+                             ",\nedge_width = ",input$edgeSizeMan,")")
+        if(is.directed(g)){
+          arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
+                               ",\nends = \"last\", type = \"closed\")",
+                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+          code_edges <- gsub(")$",arrow_code,code_edges)
+        }
+        edge_scale_alpha <- paste0("scale_edge_alpha(",
+                                   "range = c(",input$edgeAlphaAttrL,",",input$edgeAlphaAttrH,"))")
+        edge_scale_col <- paste0("scale_edge_colour_brewer(palette = \"",
+                                 input$edgeColAttrP,"\", na.value = \"gray53\")")
+
+        code_edges <- paste(code_edges,edge_scale_col,edge_scale_alpha,sep=" + ")
+
+      } else if(input$edgeColAttr=="None" & input$edgeColAttrD=="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr!="None"){
+        code_edges <- paste0(edge_geom,
                              "aes(alpha = ",input$edgeAlphaAttr,
                              ",width = ",input$edgeSizeAttr,")",
-                             ",\nedge_colour = \"", input$edgeColMan,"\"",
-                             ",n = ",input$edgeNMan,")")
+                             ",\nedge_colour = \"", input$edgeColMan,"\"",")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
                                ",\nends = \"last\", type = \"closed\")",
@@ -710,11 +782,10 @@ SNAhelper <- function(text){
         code_edges <- paste(code_edges,edge_scale_size,edge_scale_alpha,sep=" + ")
 
       } else if(input$edgeColAttr!="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr!="None"){
-        code_edges <- paste0("geom_edge_fan(",
+        code_edges <- paste0(edge_geom,
                              "aes(alpha = ",input$edgeAlphaAttr,
                              ",width = ",input$edgeSizeAttr,
-                             ",\ncolour = ",input$edgeColAttr,")",
-                             ",n = ",input$edgeNMan,")")
+                             ",\ncolour = ",input$edgeColAttr,")",")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
                                ",\nends = \"last\", type = \"closed\")",
@@ -730,16 +801,36 @@ SNAhelper <- function(text){
                                  "high = \"",input$edgeColAttrH,"\")")
 
         code_edges <- paste(code_edges,edge_scale_col,edge_scale_size,edge_scale_alpha,sep=" + ")
+      } else if(input$edgeColAttrD!="None" & input$edgeSizeAttr!="None" & input$edgeAlphaAttr!="None"){
+        code_edges <- paste0(edge_geom,
+                             "aes(alpha = ",input$edgeAlphaAttr,
+                             ",width = ",input$edgeSizeAttr,
+                             ",\ncolour = ",input$edgeColAttrD,")",")")
+        if(is.directed(g)){
+          arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
+                               ",\nends = \"last\", type = \"closed\")",
+                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+          code_edges <- gsub(")$",arrow_code,code_edges)
+        }
+        edge_scale_alpha <- paste0("scale_edge_alpha(",
+                                   "range = c(",input$edgeAlphaAttrL,",",input$edgeAlphaAttrH,"))")
+        edge_scale_size <- paste0("scale_edge_width(",
+                                  "range = c(",input$edgeSizeAttrL,",",input$edgeSizeAttrH,"))")
+
+        edge_scale_col <- paste0("scale_edge_colour_brewer(palette = \"",
+                                 input$edgeColAttrP,"\", na.value = \"gray53\")")
+
+        code_edges <- paste(code_edges,edge_scale_col,edge_scale_size,edge_scale_alpha,sep=" + ")
       }
 
-      #################
+      #----------------#
       #theme ----
-      #################
+      #----------------#
       code_theme <- paste0("theme_graph() + theme(legend.position = \"",input$legendPos,"\")")
 
-#################
+      #----------------#
       #glue ----
-################
+      #----------------#
       code <- paste(code_layout,code_edges,code_nodes,code_theme,sep=" + ")
       if(input$showLabs){
         code <- paste0(code,"+ geom_node_text(label = 1:vcount(rv$g),colour=\"white\")")
@@ -750,14 +841,14 @@ SNAhelper <- function(text){
       return(p)
 
     })
-##################################
+    #----------------#
     DT_reactiveN <- reactive({
       create_attribute_df(rv$g,which = "nodes")
     })
     DT_reactiveE <- reactive({
       create_attribute_df(rv$g,which = "edges")
     })
-##################################
+    #----------------#
     #render plot
     ggnet <- renderPlot( {
       eval(parse(text = gg_reactive()))
@@ -807,6 +898,7 @@ SNAhelper <- function(text){
       result <- gsub("rv\\$xy\\[,2\\]",paste0("V(",text,")$y"),result)
       result <- formatR::tidy_source(text=result,output = FALSE)$text.tidy
       result <- gsub("\\+","\\+ \n\t",result)
+      result <- gsub("\n\\s*\n","\n",result)
       eval(parse(text = paste0("assign(\"",text,"\",rv$g",",envir = .GlobalEnv)")))
       rstudioapi::insertText(result)
       invisible(stopApp())

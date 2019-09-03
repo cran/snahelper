@@ -4,7 +4,9 @@ line.height <- '70px'
 heading.height <- '30px'
 
 layouts.available <- list("graphlayouts" = c("Stress"="graphlayouts::layout_with_stress",
-                                      "Backbone"="graphlayouts::layout_as_backbone"),
+                                      "Backbone"="graphlayouts::layout_as_backbone",
+                                      "Radial focus" = "graphlayouts::layout_with_focus",
+                                      "Radial centrality" = "graphlayouts::layout_with_centrality"),
                           "igraph" =   c("Circle"="layout_in_circle","Nicely"= "layout_nicely",
                                          "Random"="layout_randomly",
                                          "Fruchterman-Reingold"="layout_with_fr",
@@ -18,3 +20,20 @@ layouts.available <- list("graphlayouts" = c("Stress"="graphlayouts::layout_with
 
 colours.available <- c(colors()[!grepl('grey', colors())])
 fonts.available <- names(pdfFonts())
+
+AttrNameImport <- paste0(
+  "vnames <- get.vertex.attribute(g,'name')\n",
+  "identCol <- which(apply(attrs,2,function(x) all(x%in%vnames)))[1]\n",
+  "anames <- attrs[,identCol]\n",
+  "attrs <- attrs[,-identCol]\n",
+  "perm <- match(vnames,anames)\n",
+  "for(attr in names(attr)){\n",
+    "   g <- set_vertex_attr(g,name = attr,value = attr[[attr]][perm])\n",
+  "}\n"
+)
+
+AttrRowImport <- paste0(
+  "for(attr in names(attrs)){\n",
+  "   g <- set_vertex_attr(g,name = attr,value = attrs[[attr]])\n",
+  "}\n"
+)
