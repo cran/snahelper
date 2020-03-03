@@ -51,9 +51,8 @@ SNAhelper <- function(text){
     gadgetTitleBar("SNA helper"),
     miniTabstripPanel(selected = 'layout',
                       miniTabPanel("layout", icon = icon('sliders'),
-                                   plotOutput("Graph1", width = '80%', height = '55%',click = "tweakxy"),
                                    miniContentPanel(
-                                     scrollable = TRUE,
+                                     scrollable = FALSE,
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Choose Layout')
                                      ),
@@ -84,15 +83,12 @@ SNAhelper <- function(text){
                                                             width = input.width),
                                              p("tweak node position by clicking on the desired location.")
                                      )
-                                   )
+                                   ),
+                                   plotOutput("Graph1", width = '80%', height = '55%',click = "tweakxy")
                       ),
                       miniTabPanel("node attributes",icon = icon("list-ol"),
                                    miniContentPanel(
-                                     scrollable = TRUE,
-                                     fillRow(height = heading.height, width = '100%',
-                                             headingOutput('Node Attributes')
-                                     ),
-                                     dataTableOutput("attrManageN"),
+                                     scrollable = FALSE,
                                      fillRow(height = line.height, width = '100%',
                                              selectizeInput('centindex', label = 'Index',
                                                             choices = NULL,
@@ -104,13 +100,16 @@ SNAhelper <- function(text){
                                      fillRow(height=line.height, width = '100%',
                                              actionButton("calcIndex","Calculate Index"),
                                              actionButton("calcClust","Calculate Clustering")
-                                     )
+                                     ),
+                                     fillRow(height = heading.height, width = '100%',
+                                             headingOutput('Node Attributes')
+                                     ),
+                                     DT::dataTableOutput("attrManageN")
                                    )
                       ),
                       miniTabPanel("nodes", icon = icon('circle'),
-                                   plotOutput("Graph2", width = '80%', height = '55%'),
                                    miniContentPanel(
-                                     scrollable = TRUE,
+                                     scrollable = FALSE,
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Manual')
                                      ),
@@ -169,21 +168,21 @@ SNAhelper <- function(text){
                                              )
 
                                      )
-                                   )
+                                   ),
+                                   plotOutput("Graph2", width = '80%', height = '55%')
                       ),
                       miniTabPanel("edge attributes",icon = icon("list-ol"),
                                    miniContentPanel(
-                                     scrollable = TRUE,
+                                     scrollable = FALSE,
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Edge Attributes')
                                      ),
-                                     dataTableOutput("attrManageE")
+                                     DT::dataTableOutput("attrManageE")
                                    )
                       ),
                       miniTabPanel("edges", icon = icon('minus'),
-                                   plotOutput("Graph3", width = '80%', height = '55%'),
                                    miniContentPanel(
-                                     scrollable = TRUE,
+                                     scrollable = FALSE,
                                      fillRow(height = heading.height, width = '100%',
                                              headingOutput('Manual')
                                      ),
@@ -236,7 +235,8 @@ SNAhelper <- function(text){
                                              )
 
                                      )
-                                   )
+                                   ),
+                                   plotOutput("Graph3", width = '80%', height = '55%')
                       ),
                       miniTabPanel("result", icon = icon('bezier-curve'),
                                    plotOutput("Graph4", width = '90%', height = '80%'),
@@ -451,10 +451,18 @@ SNAhelper <- function(text){
     })
 
     #--------------------#
-    #calculate centrality/clustering if needed ----
+    #calculate centrality/clustering ----
     #--------------------#
     shiny::observeEvent(input$calcIndex, {
       attr_name <- gsub("\\(rv.*","",input$centindex)
+      if(igraph::is_directed(g) & attr_name=="degree"){
+        opt <- gsub("')","",gsub(".*mode='","",input$centindex))
+        attr_name <- paste0(opt,"-",attr_name)
+      }
+      if(igraph::is_directed(g) & attr_name=="graph.strength"){
+        opt <- gsub("')","",gsub(".*mode='","",input$centindex))
+        attr_name <- paste0(opt,"-",attr_name)
+      }
       if(!attr_name%in%igraph::vertex_attr_names(rv$g)){
         ind <- eval(parse(text=input$centindex))
 
@@ -626,8 +634,7 @@ SNAhelper <- function(text){
                              ",edge_alpha = ",input$edgeAlphaMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
 
@@ -638,8 +645,7 @@ SNAhelper <- function(text){
                                ",edge_alpha = ",input$edgeAlphaMan,")")
           if(is.directed(g)){
             arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                                 ",\nends = \"last\", type = \"closed\")",
-                                 ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                                 ",\nends = \"last\", type = \"closed\"))")
             code_edges <- gsub(")$",arrow_code,code_edges)
           }
           edge_scale_col <- paste0("scale_edge_colour_gradient(low = \"",input$edgeColAttrL,"\",",
@@ -653,8 +659,7 @@ SNAhelper <- function(text){
                                ",edge_alpha = ",input$edgeAlphaMan,")")
           if(is.directed(g)){
             arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                                 ",\nends = \"last\", type = \"closed\")",
-                                 ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                                 ",\nends = \"last\", type = \"closed\"))")
             code_edges <- gsub(")$",arrow_code,code_edges)
           }
           edge_scale_col <- paste0("scale_edge_colour_brewer(palette = \"",
@@ -668,8 +673,7 @@ SNAhelper <- function(text){
                              ",edge_alpha = ",input$edgeAlphaMan,")")
           if(is.directed(g)){
             arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                                 ",\nends = \"last\", type = \"closed\")",
-                                 ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                                 ",\nends = \"last\", type = \"closed\"))")
             code_edges <- gsub(")$",arrow_code,code_edges)
           }
           edge_scale_size <- paste0("scale_edge_width(",
@@ -683,8 +687,7 @@ SNAhelper <- function(text){
                              ",\nedge_width = ",input$edgeSizeMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_alpha <- paste0("scale_edge_alpha(",
@@ -698,8 +701,7 @@ SNAhelper <- function(text){
                              ",edge_alpha = ",input$edgeAlphaMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_size <- paste0("scale_edge_width(",
@@ -716,8 +718,7 @@ SNAhelper <- function(text){
                              ",edge_alpha = ",input$edgeAlphaMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_size <- paste0("scale_edge_width(",
@@ -734,8 +735,7 @@ SNAhelper <- function(text){
                              ",\nedge_width = ",input$edgeSizeMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_alpha <- paste0("scale_edge_alpha(",
@@ -752,8 +752,7 @@ SNAhelper <- function(text){
                              ",\nedge_width = ",input$edgeSizeMan,")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_alpha <- paste0("scale_edge_alpha(",
@@ -770,8 +769,7 @@ SNAhelper <- function(text){
                              ",\nedge_colour = \"", input$edgeColMan,"\"",")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_alpha <- paste0("scale_edge_alpha(",
@@ -788,8 +786,7 @@ SNAhelper <- function(text){
                              ",\ncolour = ",input$edgeColAttr,")",")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_alpha <- paste0("scale_edge_alpha(",
@@ -808,8 +805,7 @@ SNAhelper <- function(text){
                              ",\ncolour = ",input$edgeColAttrD,")",")")
         if(is.directed(g)){
           arrow_code <- paste0(",\narrow = arrow(angle = 30, length = unit(0.15, \"inches\")",
-                               ",\nends = \"last\", type = \"closed\")",
-                               ",\nend_cap = circle(",input$nodeSizeMan+2,", \"pt\"))")
+                               ",\nends = \"last\", type = \"closed\"))")
           code_edges <- gsub(")$",arrow_code,code_edges)
         }
         edge_scale_alpha <- paste0("scale_edge_alpha(",
@@ -867,14 +863,14 @@ SNAhelper <- function(text){
       }
     )
     #render Attribute Manager
-    dfattrN <- renderDataTable({
+    dfattrN <- DT::renderDataTable({
       DT_reactiveN()
     },options = list(
       lengthMenu = list(c(10, 20, -1), c('10', '20', 'All')),
       pageLength = 10,
       searching = FALSE))
 
-    dfattrE <- renderDataTable({
+    dfattrE <- DT::renderDataTable({
       DT_reactiveE()
     },options = list(
       lengthMenu = list(c(10, 20, -1), c('10', '20', 'All')),
